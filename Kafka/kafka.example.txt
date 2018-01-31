@@ -1,0 +1,58 @@
+# jq 설치
+sudo apt -y install jq
+
+# 변수 설정
+CLUSTERNAME='spark-dpluskafka001'
+USER='admin'
+SSHUSER='sshuser'
+
+# 변수 KAFKAZKHOSTS, KAFKABROKERS 설정
+export KAFKAZKHOSTS=`curl -sS -u $USER -G https://$CLUSTERNAME.azurehdinsight.net/api/v1/clusters/$CLUSTERNAME/services/ZOOKEEPER/components/ZOOKEEPER_SERVER | jq -r '["\(.host_components[].HostRoles.host_name):2181"] | join(",")' | cut -d',' -f1,2`
+export KAFKABROKERS=`curl -sS -u $USER -G https://$CLUSTERNAME.azurehdinsight.net/api/v1/clusters/$CLUSTERNAME/services/KAFKA/components/KAFKA_BROKER | jq -r '["\(.host_components[].HostRoles.host_name):9092"] | join(",")' | cut -d',' -f1,2`
+
+# 변수 KAFKAZKHOSTS, KAFKABROKERS 확인
+echo '$KAFKAZKHOSTS='$KAFKAZKHOSTS
+echo '$KAFKABROKERS='$KAFKABROKERS
+
+# check
+curl -sS -u $USER -G https://$CLUSTERNAME.azurehdinsight.net/api/v1/clusters/$CLUSTERNAME/services/ZOOKEEPER/components/ZOOKEEPER_SERVER
+curl -sS -u $USER -G https://$CLUSTERNAME.azurehdinsight.net/api/v1/clusters/$CLUSTERNAME/services/ZOOKEEPER/components/ZOOKEEPER_SERVER | jq -r '["\(.host_components[].HostRoles.host_name):2181"] | join(",")' | cut -d',' -f1,2
+curl -sS -u $USER -G https://$CLUSTERNAME.azurehdinsight.net/api/v1/clusters/$CLUSTERNAME/services/KAFKA/components/KAFKA_BROKER
+curl -sS -u $USER -G https://$CLUSTERNAME.azurehdinsight.net/api/v1/clusters/$CLUSTERNAME/services/KAFKA/components/KAFKA_BROKER | jq -r '["\(.host_components[].HostRoles.host_name):9092"] | join(",")' | cut -d',' -f1,2
+
+# 토픽 만들기
+/usr/hdp/current/kafka-broker/bin/kafka-topics.sh --create --replication-factor 3 --partitions 8 --topic test --zookeeper $KAFKAZKHOSTS
+/usr/hdp/current/kafka-broker/bin/kafka-topics.sh --create --replication-factor 3 --partitions 8 --topic wordcounts --zookeeper $KAFKAZKHOSTS
+/usr/hdp/current/kafka-broker/bin/kafka-topics.sh --create --replication-factor 3 --partitions 8 --topic sensors --zookeeper $KAFKAZKHOSTS
+# 토픽 확인
+/usr/hdp/current/kafka-broker/bin/kafka-topics.sh --list --zookeeper $KAFKAZKHOSTS
+
+# 토픽에 레코드를 기록
+/usr/hdp/current/kafka-broker/bin/kafka-console-producer.sh --broker-list $KAFKABROKERS --topic sensors
+
+# 토픽에서 레코드 읽기
+/usr/hdp/current/kafka-broker/bin/kafka-console-consumer.sh --bootstrap-server $KAFKABROKERS --topic sensors --from-beginning
+
+
+
+
+# 깃허브 프로젝트 clone
+# link: https://github.com/Azure-Samples/hdinsight-kafka-java-get-started
+git clone https://github.com/Azure-Samples/hdinsight-kafka-java-get-started.git
+# maven 설치
+sudo apt install maven
+
+# compile - make kafka-producer-consumer-1.0-SNAPSHOT.jar
+cd Producer-Consumer
+mvn clean package
+cp ./target/kafka-producer-consumer-1.0-SNAPSHOT.jar ~/kafka-producer-consumer.jar
+
+# 실행 권한
+sudo chmod +x kafka-producer-consumer.jar
+
+# consumer 프로그램 실행
+java -jar ./kafka-producer-consumer.jar consumer $KAFKABROKERS
+# producer 프로그램 실행
+java -jar ./kafka-producer-consumer.jar producer $KAFKABROKERS
+
+
